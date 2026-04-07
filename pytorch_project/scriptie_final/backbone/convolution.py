@@ -24,46 +24,11 @@ def make_gabor_kernels(ksize, sigma, lam, gamma=0.5, K=20, device='cpu'):
     kernels = np.stack(kernels)[:, None, :, :]  # (K,1,ksize,ksize)
     return torch.tensor(kernels, dtype=torch.float32, device=device), np.array(angles)
 
-#def cluster(heatmaps, threshold_ratio=0.8):
-#    """
-#    heatmaps: [1, C, H, W] tensor
-#    threshold_ratio: fraction of max value to consider part of a cluster
-#    Returns: tensor([value, channel, x, y]) of the centroid of the strongest cluster
-#    """
-#    maps = heatmaps[0].cpu().numpy()  # [C, H, W]
-#    C, H, W = maps.shape
-#
-#   best_value = -np.inf
-#    best_coords = None
-#    best_channel = None
-#
-#    for c in range(C):
-#        heatmap = maps[c]
-#        # threshold map
-#        thresh = heatmap > (threshold_ratio * heatmap.max())
-#        # label connected components
-#        labeled, n = label(thresh)
-#        if n == 0:
-#            continue
-
-        # compute cluster values and find the strongest
-#        for cluster_id in range(1, n+1):
-#            mask = labeled == cluster_id
-#            cluster_value = heatmap[mask].sum()
-#            if cluster_value > best_value:
-#                best_value = cluster_value
-                # centroid weighted by values
-#                cy, cx = center_of_mass(heatmap, labels=labeled, index=cluster_id)
-#                best_coords = (cx, cy)
-#                best_channel = c
-
-#    return best_value, best_channel, int(best_coords[0]), int(best_coords[1])
-
 def clusters(heatmaps, threshold_ratio=0.9, edge_margin=15):
     """
     heatmaps: [1, C, H, W] tensor
     threshold_ratio: fraction of max value to consider part of a cluster
-    Returns: list of 14 tuples [(value, channel, x, y), ...] for the top 10 clusters
+    Returns: list of 26 tuples [(value, channel, x, y), ...]
     Efficient implementation using a min-heap.
     """
     maps = heatmaps[0].cpu().numpy()  # [C, H, W]
@@ -89,19 +54,18 @@ def clusters(heatmaps, threshold_ratio=0.9, edge_margin=15):
 
             cy1 = cy0 + random.uniform(-15, 15)
             cx1 = cx0 + random.uniform(-15, 15)
-            # Clamp to stay within the heatmap bounds
-            cy2 = max(0, min(cy1, 511))
-            cx2 = max(0, min(cx1, 511))
+
+            cy2 = max(0, min(cy1, H - 1))
+            cx2 = max(0, min(cx1, W - 1))
+
             cluster_tuple = (cluster_value, c, int(cx2), int(cy2))
 
-            if len(top_clusters_heap) < 14:
+            if len(top_clusters_heap) < 26:  # ← changed here
                 heapq.heappush(top_clusters_heap, cluster_tuple)
             else:
-                # Only keep cluster if it's bigger than the smallest in heap
                 if cluster_value > top_clusters_heap[0][0]:
                     heapq.heapreplace(top_clusters_heap, cluster_tuple)
 
-    # convert heap to sorted list (descending by value)
     top_clusters = sorted(top_clusters_heap, key=lambda x: x[0], reverse=True)
     return top_clusters
 
